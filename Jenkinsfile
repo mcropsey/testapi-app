@@ -90,7 +90,9 @@ pipeline {
           // netns, change the -p mapping AND the test-group target together
           // (e.g. 3100:3000 -> http://localhost:3100).
           sh 'docker rm -f testapi-dast 2>/dev/null || true'
-          sh 'docker run -d --rm --name testapi-dast -p 3000:3000 ${APP}:${env.IMAGE_TAG}'
+          // Double-quoted: Groovy interpolates APP / IMAGE_TAG (single quotes
+          // would pass ${env.IMAGE_TAG} to the shell, which is invalid).
+          sh "docker run -d --rm --name testapi-dast -p 3000:3000 ${APP}:${env.IMAGE_TAG}"
 
           // Wait for the app to be healthy (agent sees dind published ports
           // via the docker host, same pattern as the Test stage).
@@ -126,7 +128,7 @@ pipeline {
               --api-url="$ACTIVE_API_URL" \
               --env-id="$ENV_ID" \
               --test-group-id="$TEST_GROUP_ID" \
-              --app-version="$BRANCH_NAME" \
+              --app-version="main" \
               --verbose
           '''
         }
