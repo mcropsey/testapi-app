@@ -13,7 +13,7 @@ COPY package.json ./
 COPY server.js ./
 COPY openapi.yaml ./
 COPY public/ public/
-COPY README.md INSTALL.md ./
+COPY README.md INSTALL.md CICD.md ./
 RUN addgroup -S app && adduser -S app -G app \
     && mkdir -p /app/data && chown -R app:app /app
 USER app

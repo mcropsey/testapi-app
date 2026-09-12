@@ -93,6 +93,9 @@ pinned to the `main` branch and polls GitHub):
 
 So the workflow is: push to `main` → Jenkins builds, tests, deploys, verifies.
 
+Full details, an architecture/flow diagram, and troubleshooting:
+[`CICD.md`](CICD.md).
+
 The pipeline expects:
 - Jenkins reachable at `192.168.1.100:8080` with the `jenkins-docker` dind sidecar.
 - SSH from the Jenkins container to `mcropsey@192.168.1.103` (key already in place).

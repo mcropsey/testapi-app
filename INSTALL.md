@@ -71,6 +71,10 @@ node -e "require('express'); require('swagger-ui-express'); require('js-yaml'); 
 The app is packaged as a container (see `Dockerfile`) and normally run
 with **podman** (docker also works).
 
+> **Automatic deploys:** this app is also deployed via a Jenkins CI/CD
+> pipeline (build → test → deploy → verify). See [`CICD.md`](CICD.md) for the
+> flow diagram and details. The steps below are the manual/local equivalents.
+
 ### Using the Makefile (recommended)
 
 ```bash
@@ -375,8 +379,10 @@ testapi-app/
 ├── Dockerfile        # container image definition (podman/docker)
 ├── .dockerignore     # keeps node_modules/data out of the image
 ├── Makefile          # podman build/run/logs/test helpers
+├── Jenkinsfile       # CI/CD pipeline (build -> test -> deploy -> verify)
 ├── README.md         # short overview
 ├── INSTALL.md        # ← this document
+├── CICD.md           # CI/CD flow, diagram, and troubleshooting
 ├── public/           # web UI (vanilla HTML/CSS/JS, no build step)
 │   ├── index.html
 │   ├── style.css
