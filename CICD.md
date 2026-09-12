@@ -46,7 +46,7 @@ flowchart TD
     CONT <--> VOL
   end
 
-  SRC -->|"SCM poll · H/2 * * * *"| AGENT
+  SRC -->|"push (post-receive hook) / SCM poll H/1"| AGENT
   AGENT -->|"1 · Build"| BUILD
   AGENT -->|"2 · Test · curl http://docker:3100"| RUN
   AGENT -->|"3 · docker save → scp image.tgz"| POD
@@ -58,7 +58,8 @@ ASCII version:
 
 ```
   GitHub (main)
-      |  SCM poll  H/2 * * * *
+      |  push (dev box)  --post-receive hook-->  (instant)
+      |  SCM poll  H/1 * * * *  (fallback, ~1 min)
       v
   +----------------------------------------------------------+
   |  Jenkins host 192.168.1.100                              |
@@ -155,11 +156,20 @@ defaults only by explicitly removing the volume (see `INSTALL.md`).
 
 ## Triggering
 
-The job is configured with an SCM poll (`H/2 * * * *`) on the `main` branch, so it
-picks up pushes to `main` within ~30 minutes. You can also trigger immediately:
+Push to `main` and the build starts:
+
+- **Push from the dev box (192.168.1.103)** — instant. A git `post-receive` hook
+  (`~/testapi-app/.git/hooks/post-receive`) POSTs to the job's `/build` endpoint
+  right after the push. It reads
+  `~/.jenkins-testapi-app.env` (Jenkins URL/user/password/job; not in the repo).
+- **Push from anywhere else** — within ~1–2 min. The Jenkinsfile carries
+  `pollSCM('H/1 * * * *')` as the fallback (it is the single source of truth for
+  the trigger; it overrides anything set in the job UI config).
+
+Manual triggers still work:
 
 - UI: `http://192.168.1.100:8080/job/testapi-app/` → **Build now**
-- API: `POST /job/testapi-app/build` (auth + crumb)
+- API: crumb + session, then `POST /job/testapi-app/build` (see "Trigger a deploy")
 
 ## Day-to-day operations (no AI needed)
 

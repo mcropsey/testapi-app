@@ -15,6 +15,11 @@ pipeline {
   options {
     disableConcurrentBuilds()
     buildDiscarder(logRotator(numToKeepStr: '20'))
+    triggers {
+      // Fallback for pushes that don't go through the dev box (whose git
+      // post-receive hook triggers this job instantly on push to main).
+      pollSCM('H/1 * * * *')
+    }
   }
 
   stages {
