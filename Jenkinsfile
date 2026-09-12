@@ -50,7 +50,7 @@ pipeline {
             TOKEN=$(curl -fsS -X POST $BASE/api/auth/login \
               -H 'Content-Type: application/json' \
               -d '{"username":"mike1","password":"Mypassword1"}' \
-              | sed 's/.*"token":"\([^"]*\)".*/\1/')
+              | sed 's/.*"token":"\\([^"]*\\)".*/\\1/')
             [ -n "$TOKEN" ] || { echo "FATAL: login failed"; exit 1; }
 
             echo "Testing list users..."
