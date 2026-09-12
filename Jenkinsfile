@@ -81,56 +81,62 @@ pipeline {
         script {
           // Workspace dir the scanner mounts for reports/config.
           sh 'mkdir -p akamai'
-
-          // Start the app under test. The scanner runs with --network=host,
-          // which under dind resolves to the dind container's netns, so the
-          // app must be published there; 3000:3000 makes it reachable from
-          // the scanner as http://localhost:3000 (the Active test-group
-          // target must match this URL). If port 3000 is taken in the dind
-          // netns, change the -p mapping AND the test-group target together
-          // (e.g. 3100:3000 -> http://localhost:3100).
           sh 'docker rm -f testapi-dast 2>/dev/null || true'
-          // Double-quoted: Groovy interpolates APP / IMAGE_TAG (single quotes
-          // would pass ${env.IMAGE_TAG} to the shell, which is invalid).
-          sh "docker run -d --rm --name testapi-dast -p 3000:3000 ${APP}:${env.IMAGE_TAG}"
 
-          // Wait for the app to be healthy (agent sees dind published ports
-          // via the docker host, same pattern as the Test stage).
-          sh '''
-            set -e
-            up=0
-            for i in $(seq 1 30); do
-              if curl -fsS http://docker:3000/api/health >/dev/null 2>&1; then up=1; break; fi
-              sleep 1
-            done
-            [ "$up" = "1" ] || { echo "FATAL: app never became healthy for DAST"; docker logs testapi-dast || true; exit 1; }
-            echo "App healthy; starting Active scan."
-          '''
+          // Registry/scan credentials are Jenkins global env vars - never in
+          // the repo (it is public). Probe the registry first: the Active
+          // scanner image is pulled from their Artifact Registry, and if the
+          // service-account key there has expired/been rotated we skip DAST
+          // with a warning instead of failing the whole pipeline.
+          boolean registryOk = sh(
+            script: 'printf "%s" "$ACTIVE_REGISTRY_PASSWORD" | docker login "$ACTIVE_REGISTRY_URL" -u "$ACTIVE_REGISTRY_USER" --password-stdin >/dev/null 2>&1',
+            returnStatus: true
+          )
 
-          // Registry/scan credentials come from the Jenkins job configuration
-          // (job config environment variables or credentials binding) -
-          // never from the repo (it is public).
-          // Bare $vars (no braces) are NOT Groovy-interpolated, so the shell
-          // expands them from the agent environment - works whether the values
-          // come from job-config env vars or the pipeline environment block.
-          sh 'docker login $ACTIVE_REGISTRY_URL -u $ACTIVE_REGISTRY_USER -p $ACTIVE_REGISTRY_PASSWORD'
+          if (registryOk != 0) {
+            echo 'WARNING: DAST skipped - docker login to the Active image registry failed (unauthorized). The ACTIVE_REGISTRY_* credentials in the Jenkins global config are being rejected (expired/rotated service-account key). Get fresh credentials from Active/Akamai, update Manage Jenkins > Global Properties > Environment variables, and DAST runs automatically on the next build. Build continues without the scan.'
+          } else {
+            // Start the app under test. The scanner runs with --network=host,
+            // which under dind resolves to the dind container's netns, so the
+            // app must be published there; 3000:3000 makes it reachable from
+            // the scanner as http://localhost:3000 (the Active test-group
+            // target must match this URL). If port 3000 is taken in the dind
+            // netns, change the -p mapping AND the test-group target together
+            // (e.g. 3100:3000 -> http://localhost:3100).
+            // Double-quoted: Groovy interpolates APP / IMAGE_TAG (single
+            // quotes would pass ${env.IMAGE_TAG} to the shell, invalid).
+            sh "docker run -d --rm --name testapi-dast -p 3000:3000 ${APP}:${env.IMAGE_TAG}"
 
-          // Run the scanner (image version resolved from the Active backend).
-          sh '''
-            docker run \
-              --network=host \
-              -e ACTIVE_BACKEND_URI="$ACTIVE_BACKEND_URI" \
-              -e CORE_CLI_CLIENT_ID="$CORE_CLI_CLIENT_ID" \
-              -e CORE_CLI_CLIENT_SECRET="$CORE_CLI_CLIENT_SECRET" \
-              -v "$(pwd)/akamai:/akamai" \
-              "$ACTIVE_REGISTRY_URL/active-cli:$(curl -k "$ACTIVE_API_URL/backend/version")" \
-              scan \
-              --api-url="$ACTIVE_API_URL" \
-              --env-id="$ENV_ID" \
-              --test-group-id="$TEST_GROUP_ID" \
-              --app-version="main" \
-              --verbose
-          '''
+            // Wait for the app to be healthy (agent sees dind published ports
+            // via the docker host, same pattern as the Test stage).
+            sh '''
+              set -e
+              up=0
+              for i in $(seq 1 30); do
+                if curl -fsS http://docker:3000/api/health >/dev/null 2>&1; then up=1; break; fi
+                sleep 1
+              done
+              [ "$up" = "1" ] || { echo "FATAL: app never became healthy for DAST"; docker logs testapi-dast || true; exit 1; }
+              echo "App healthy; starting Active scan."
+            '''
+
+            // Run the scanner (image version resolved from the Active backend).
+            sh '''
+              docker run \
+                --network=host \
+                -e ACTIVE_BACKEND_URI="$ACTIVE_BACKEND_URI" \
+                -e CORE_CLI_CLIENT_ID="$CORE_CLI_CLIENT_ID" \
+                -e CORE_CLI_CLIENT_SECRET="$CORE_CLI_CLIENT_SECRET" \
+                -v "$(pwd)/akamai:/akamai" \
+                "$ACTIVE_REGISTRY_URL/active-cli:$(curl -k "$ACTIVE_API_URL/backend/version")" \
+                scan \
+                --api-url="$ACTIVE_API_URL" \
+                --env-id="$ENV_ID" \
+                --test-group-id="$TEST_GROUP_ID" \
+                --app-version="main" \
+                --verbose
+            '''
+          }
         }
       }
       post {
