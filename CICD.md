@@ -46,7 +46,7 @@ flowchart TD
     CONT <--> VOL
   end
 
-  SRC -->|"push (post-receive hook) / SCM poll H/1"| AGENT
+  SRC -->|"push (pre-push hook) / SCM poll H/1"| AGENT
   AGENT -->|"1 · Build"| BUILD
   AGENT -->|"2 · Test · curl http://docker:3100"| RUN
   AGENT -->|"3 · docker save → scp image.tgz"| POD
@@ -58,7 +58,7 @@ ASCII version:
 
 ```
   GitHub (main)
-      |  push (dev box)  --post-push hook-->  (instant)
+      |  push (dev box)  --pre-push hook-->  (instant)
       |  SCM poll  H/1 * * * *  (fallback, ~1 min)
       v
   +----------------------------------------------------------+
@@ -104,14 +104,22 @@ CLI scanner against it. The scanner runs with `--network=host`, so from its
 point of view the app is at `http://localhost:3000` — the Active test group
 (`TEST_GROUP_ID`, backend at `ACTIVE_API_URL`) must target that URL.
 
-- `docker login` to the Active image registry
+- `docker login` to the Active image registry (Active's own Google
+  Artifact Registry — the GCP project belongs to Active/Akamai, not to us)
 - `active-cli:<version>` is pulled from the registry; the version is resolved
   live from `$ACTIVE_API_URL/backend/version`
 - Reports/config mount: workspace `akamai/` → container `/akamai`
 - A non-zero scanner exit fails the pipeline before Deploy
 
-**Job-config environment variables** (set in the Jenkins job configuration —
-the repo is public, so the values must never live in the Jenkinsfile):
+**Skip behaviour:** the stage first probes the registry with `docker login`.
+If that fails (e.g. the service-account key has expired — only Active can
+issue a fresh one), DAST is **skipped with a warning** and the build
+continues to Deploy/Verify. Once valid credentials are in the Jenkins global
+config, the scan runs again automatically.
+
+**Environment variables** (set as Jenkins *global* env vars — Manage Jenkins
+> Global Properties > Environment variables; the repo is public, so the
+values must never live in the Jenkinsfile):
 
 | Variable | Purpose |
 |----------|---------|
@@ -158,11 +166,13 @@ defaults only by explicitly removing the volume (see `INSTALL.md`).
 
 Push to `main` and the build starts:
 
-- **Push from the dev box (192.168.1.103)** — instant. A git `post-push` hook
-  (`~/testapi-app/.git/hooks/post-push`) POSTs to the job's `/build` endpoint
-  right after the push succeeds. It reads
+- **Push from the dev box (192.168.1.103)** — instant. A git `pre-push` hook
+  (`~/testapi-app/.git/hooks/pre-push`) POSTs to the job's `/build` endpoint
+  when you push `main`. It reads
   `~/.jenkins-testapi-app.env` (Jenkins URL/user/password/job; not in the repo).
-  (GitHub-side pushes can't reach the hook — that's what the poll is for.)
+  (Git runs it before the push is confirmed — if the push then fails, a build of
+  the previous `main` is queued; rare and harmless. Pushes that don't go through
+  this machine are picked up by the poll instead.)
 - **Push from anywhere else** — within ~1–2 min. The Jenkinsfile carries
   `pollSCM('H/1 * * * *')` as the fallback (it is the single source of truth for
   the trigger; it overrides anything set in the job UI config).
