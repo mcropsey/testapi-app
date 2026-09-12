@@ -36,42 +36,73 @@ API documentation, all in a single Node.js/Express application.
 
 ## 2. Prerequisites
 
-| Requirement | Version | Check command |
-|-------------|---------|---------------|
-| Node.js     | 18+ (tested on 22) | `node --version` |
-| npm         | 9+  (bundled with Node) | `npm --version` |
-| curl (for API testing) | any | `curl --version` |
+| Requirement | Version | Check command | Needed for |
+|-------------|---------|---------------|------------|
+| podman (or docker) | 4+ (tested on 5.8) | `podman --version` | Running the container (primary) |
+| make | any (tested on 4.4) | `make --version` | Convenience targets |
+| Node.js | 18+ (image uses 22) | `node --version` | Bare development runs only |
+| curl (for API testing) | any | `curl --version` | API examples / smoke test |
 
-No database, no external services.
+No database, no external services. Running from the container needs
+**no local Node install** — dependencies are installed into the image at
+build time.
 
 ---
 
 ## 3. Installation
 
-```bash
-# 1. Move to the app directory
-cd testapi-app
+There is nothing to install for container use — `make run` (see §4) builds
+the image and starts it.
 
-# 2. Install dependencies (express, swagger-ui-express, js-yaml)
+If you also want to run the app directly on the host (development):
+
+```bash
+# install dependencies (express, swagger-ui-express, js-yaml)
 npm install
 
-# 3. (Optional) verify the install
+# (Optional) verify the install
 node -e "require('express'); require('swagger-ui-express'); require('js-yaml'); console.log('deps OK')"
 ```
-
-That's it — there is no build step.
 
 ---
 
 ## 4. Running the app
 
-### Foreground (development)
+The app is packaged as a container (see `Dockerfile`) and normally run
+with **podman** (docker also works).
+
+### Using the Makefile (recommended)
 
 ```bash
-npm start
+make run     # build image + start container (name: testapi-app, port 3000)
+make test    # smoke test: health check + login as mike1
+make logs    # follow logs
+make ps      # status
+make stop    # stop
+make clean   # stop + remove container (data volume is kept)
 ```
 
-Expected output:
+### Manual podman commands
+
+```bash
+# build
+podman build --format docker -t testapi-app:latest .
+
+# run (users persist in the testapi-app-data volume)
+podman run -d --name testapi-app --restart unless-stopped \
+  -p 3000:3000 -v testapi-app-data:/app/data testapi-app:latest
+
+# other common commands
+podman logs -f testapi-app        # follow logs
+podman stop testapi-app           # stop
+podman start testapi-app          # start again
+podman exec -it testapi-app sh    # shell inside the container
+
+# custom port
+podman run -d --name testapi-app -p 8080:3000 ...
+```
+
+Expected log output:
 
 ```
 Seeded 10 default users (mike1-mike10)      ← only on first run
@@ -81,26 +112,13 @@ TestAPI App running at http://localhost:3000
   Health:  http://localhost:3000/api/health
 ```
 
-### Background (server-style)
+### Bare Node (development, no container)
 
 ```bash
-nohup npm start > server.log 2>&1 &
-```
-
-### Custom port
-
-```bash
-PORT=8080 npm start
-```
-
-### Stop the app
-
-```bash
-# find the process
-ps aux | grep '[s]erver.js'
-
-# stop it
-kill <PID>
+npm start
+# or in the background:  nohup npm start > server.log 2>&1 &
+# or on a custom port:   PORT=8080 npm start
+# stop:  pkill -f server.js   (careful: use an exact match)
 ```
 
 ---
@@ -324,15 +342,24 @@ Common status codes:
 ### Reset to the 10 default users
 
 ```bash
-# stop the app first (see §4), then:
+# containerized: remove the data volume, then restart the container
+make clean
+podman volume rm testapi-app-data
+make start        # or: make run
+
+# bare node:
 rm data/users.json
-# start the app again — it re-seeds automatically
 npm start
 ```
 
 ### Back up the data
 
 ```bash
+# containerized: the volume's data dir
+cp $(podman volume inspect testapi-app-data --format '{{.Mountpoint}}')/users.json \
+   backup-users-$(date +%F).json
+
+# bare node:
 cp data/users.json backup-users-$(date +%F).json
 ```
 
@@ -345,15 +372,17 @@ testapi-app/
 ├── package.json      # dependencies + npm scripts
 ├── server.js         # the whole backend: API, auth, Swagger, static UI
 ├── openapi.yaml      # OpenAPI 3.0.3 spec ("the swagger file")
+├── Dockerfile        # container image definition (podman/docker)
+├── .dockerignore     # keeps node_modules/data out of the image
+├── Makefile          # podman build/run/logs/test helpers
 ├── README.md         # short overview
 ├── INSTALL.md        # ← this document
 ├── public/           # web UI (vanilla HTML/CSS/JS, no build step)
 │   ├── index.html
 │   ├── style.css
 │   └── app.js
-├── data/
-│   └── users.json    # persisted users (created on first start)
-└── server.log        # runtime log (when started with nohup)
+└── data/
+    └── users.json    # persisted users (in the container: /app/data volume)
 ```
 
 ---
@@ -362,9 +391,9 @@ testapi-app/
 
 | Symptom | Likely cause / fix |
 |---------|--------------------|
-| `EADDRINUSE` on start | Another instance is already running on port 3000. Kill it or use `PORT=8080 npm start`. |
+| `EADDRINUSE` on start | Another instance already uses port 3000 — stop the old container (`make stop`) or run on another port: `podman run -p 8080:3000 ...`. |
 | `Invalid username or password` | Wrong credentials. Passwords are case-sensitive — `Mypassword1`, not `mypassword1`. Check the browser password manager isn't auto-filling a different password. |
-| Logged out after a restart | Sessions are in-memory by design. Just log in again; users are still in `data/users.json`. |
+| Logged out after a restart | Sessions are in-memory by design. Just log in again; users persist in the data volume (or `data/users.json` for bare runs). |
 | Port 3000 unreachable from another machine | Make sure you're using the server's LAN IP (e.g. `http://192.168.1.103:3000`) and the firewall/SELinux allow it (on this machine both are disabled). |
 | `node: command not found` | Install Node.js 18+ (e.g. `sudo dnf install nodejs` on Rocky/EL). |
 | UI looks broken / old | Hard-refresh (Ctrl+Shift+R) to bypass the browser cache. |

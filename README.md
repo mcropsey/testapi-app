@@ -1,14 +1,22 @@
 # TestAPI App
 
 A simulated user-management service: REST API + web UI + Swagger docs in one
-small Node.js/Express app. Ships pre-seeded with 10 default users who have
-personal information (profile) stored.
+small Node.js/Express app, packaged as a container. Ships pre-seeded with
+10 default users who have personal information (profile) stored.
 
-## Quick start
+## Quick start (podman)
 
 ```bash
-npm install
-npm start
+make run     # build the image and start the container on port 3000
+make test    # smoke test (health + login)
+```
+
+Or manually:
+
+```bash
+podman build --format docker -t testapi-app:latest .
+podman run -d --name testapi-app --restart unless-stopped \
+  -p 3000:3000 -v testapi-app-data:/app/data testapi-app:latest
 ```
 
 Then open:
@@ -34,8 +42,12 @@ Then open:
 | mike9 | Mypassword9 |
 | mike10 | Mypassword10 |
 
-Seeding happens automatically on first start into `data/users.json`.
-Delete that file to reset back to the 10 default users.
+Users are seeded automatically on first start into the container's data
+volume (`testapi-app-data` → `/app/data/users.json`).
+Reset to the defaults: `make clean && podman volume rm testapi-app-data && make start`.
+
+Running without a container (development): `npm install && npm start`.
+Full docs: [`INSTALL.md`](INSTALL.md).
 
 ## API overview
 
@@ -47,6 +59,7 @@ from `POST /api/auth/login`.
 | GET    | /api/health      | Health check (public)                |
 | GET    | /api/meta        | Service metadata (public)            |
 | POST   | /api/auth/login  | Log in, get a Bearer token           |
+| GET    | /api/auth/me     | Get the currently authenticated user |
 | POST   | /api/auth/logout | Invalidate the current token         |
 | GET    | /api/users       | List users (`?q=` filter, paging)    |
 | GET    | /api/users/{id}  | Get one user (id or username)        |
@@ -72,7 +85,10 @@ curl -s localhost:3000/api/users -H "Authorization: Bearer $TOKEN"
 server.js         Express app: API, auth, Swagger, static UI
 openapi.yaml      OpenAPI 3.0 spec (the "swagger file")
 public/           Web UI (vanilla HTML/CSS/JS)
-data/users.json   Persisted users (created on first start)
+Dockerfile        Container image (podman/docker)
+.dockerignore     Keeps node_modules/data out of the image
+Makefile          podman build/run/logs/test helpers
+data/users.json   Persisted users (container volume /app/data)
 ```
 
 ## Notes
