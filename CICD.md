@@ -96,6 +96,32 @@ and smoke-tests the API at `http://docker:3100`:
 
 Any failure fails the pipeline before anything is deployed.
 
+### DAST (Active scan)
+Between Test and Deploy: starts the freshly built image on the agent
+(`docker run -p 3000:3000`), waits for `/api/health`, then runs the Active
+CLI scanner against it. The scanner runs with `--network=host`, so from its
+point of view the app is at `http://localhost:3000` — the Active test group
+(`TEST_GROUP_ID`, backend at `ACTIVE_API_URL`) must target that URL.
+
+- `docker login` to the Active image registry
+- `active-cli:<version>` is pulled from the registry; the version is resolved
+  live from `$ACTIVE_API_URL/backend/version`
+- Reports/config mount: workspace `akamai/` → container `/akamai`
+- A non-zero scanner exit fails the pipeline before Deploy
+
+**Job-config environment variables** (set in the Jenkins job configuration —
+the repo is public, so the values must never live in the Jenkinsfile):
+
+| Variable | Purpose |
+|----------|---------|
+| `ACTIVE_REGISTRY_URL` | Docker registry hosting `active-cli` |
+| `ACTIVE_REGISTRY_USER` / `ACTIVE_REGISTRY_PASSWORD` | Registry login |
+| `ACTIVE_API_URL` | Active backend API base URL |
+| `ACTIVE_BACKEND_URI` | Active backend URI (passed to the scanner) |
+| `CORE_CLI_CLIENT_ID` / `CORE_CLI_CLIENT_SECRET` | Scanner client credentials |
+| `ENV_ID` | Active environment ID |
+| `TEST_GROUP_ID` | Test group (defines the scan target) |
+
 ### 3. Deploy
 - `docker tag testapi-app:<sha> localhost/testapi-app:<sha>`
 - `docker save localhost/testapi-app:<sha> | gzip` → `image-<sha>.tgz`
