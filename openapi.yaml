@@ -445,7 +445,6 @@ components:
         profile:
           allOf:
             - $ref: '#/components/schemas/UserProfile'
-            - required: []
           description: Partial profile update; omitted fields are unchanged.
     Error:
       type: object
