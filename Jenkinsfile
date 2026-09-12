@@ -2,8 +2,7 @@
 // Build in Jenkins (docker/dind), smoke-test the image, then deploy to the
 // podman host (192.168.1.103) where the app runs as a container.
 //
-//   main branch  -> build, test, deploy, verify
-//   other branch -> build, test only (preview)
+//   Every build -> build, test, deploy, verify (job is pinned to the main branch)
 pipeline {
   agent any
 
@@ -72,7 +71,6 @@ pipeline {
     }
 
     stage('Deploy') {
-      when { branch 'main' }
       steps {
         script {
           def tag = env.IMAGE_TAG
@@ -97,7 +95,6 @@ pipeline {
     }
 
     stage('Verify') {
-      when { branch 'main' }
       steps {
         sh '''
           set -e

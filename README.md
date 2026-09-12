@@ -81,16 +81,17 @@ curl -s localhost:3000/api/users -H "Authorization: Bearer $TOKEN"
 
 ## CI/CD (Jenkins)
 
-A `Jenkinsfile` (declarative pipeline) is included. On every push it:
+A `Jenkinsfile` (declarative pipeline) is included. On every build (the job is
+pinned to the `main` branch and polls GitHub):
 
 1. **Build** — `docker build` in the Jenkins dind sidecar, tagged with the git SHA.
 2. **Test** — runs the image, then smoke-tests the API (health, login, create/list/delete user).
-3. **Deploy** (main branch only) — saves the image, ships it to the podman host
+3. **Deploy** — saves the image, ships it to the podman host
    (`192.168.1.103`), `podman load`s it and re-runs the container. The
    `testapi-app-data` volume is kept, so your users survive a deploy.
 4. **Verify** — health-check + login against the live app.
 
-Branches other than `main` build and test only (no deploy).
+So the workflow is: push to `main` → Jenkins builds, tests, deploys, verifies.
 
 The pipeline expects:
 - Jenkins reachable at `192.168.1.100:8080` with the `jenkins-docker` dind sidecar.
