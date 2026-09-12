@@ -75,7 +75,13 @@ pipeline {
         script {
           def tag = env.IMAGE_TAG
           echo "Deploying ${APP}:${tag} to ${DEPLOY}"
-          sh "docker save ${APP}:${tag} | gzip > /tmp/image-${tag}.tgz"
+          sh """
+            # Tag with the localhost/ registry prefix so `podman load` restores
+            # the exact name we run. A bare name (testapi-app) would be
+            # interpreted as docker.io/library/testapi-app and not be found.
+            docker tag ${APP}:${tag} localhost/${APP}:${tag}
+            docker save localhost/${APP}:${tag} | gzip > /tmp/image-${tag}.tgz
+          """
           sh "scp -o StrictHostKeyChecking=accept-new /tmp/image-${tag}.tgz ${DEPLOY}:/tmp/"
           sh """
             ssh -o StrictHostKeyChecking=accept-new ${DEPLOY} '
@@ -83,10 +89,12 @@ pipeline {
               echo "Loading image on podman host..."
               podman load < /tmp/image-${tag}.tgz
               rm -f /tmp/image-${tag}.tgz
+              # Keep the :latest alias in sync with this release.
+              podman tag localhost/${APP}:${tag} localhost/${APP}:latest
               echo "Replacing container (data volume is kept)..."
               podman rm -f testapi-app 2>/dev/null || true
               podman run -d --name testapi-app --restart unless-stopped \\
-                -p 3000:3000 -v testapi-app-data:/app/data localhost/testapi-app:${tag}
+                -p 3000:3000 -v testapi-app-data:/app/data localhost/${APP}:${tag}
               echo "Container started."
             '
           """
