@@ -79,6 +79,26 @@ TOKEN=$(curl -s -X POST localhost:3000/api/auth/login \
 curl -s localhost:3000/api/users -H "Authorization: Bearer $TOKEN"
 ```
 
+## CI/CD (Jenkins)
+
+A `Jenkinsfile` (declarative pipeline) is included. On every push it:
+
+1. **Build** — `docker build` in the Jenkins dind sidecar, tagged with the git SHA.
+2. **Test** — runs the image, then smoke-tests the API (health, login, create/list/delete user).
+3. **Deploy** (main branch only) — saves the image, ships it to the podman host
+   (`192.168.1.103`), `podman load`s it and re-runs the container. The
+   `testapi-app-data` volume is kept, so your users survive a deploy.
+4. **Verify** — health-check + login against the live app.
+
+Branches other than `main` build and test only (no deploy).
+
+The pipeline expects:
+- Jenkins reachable at `192.168.1.100:8080` with the `jenkins-docker` dind sidecar.
+- SSH from the Jenkins container to `mcropsey@192.168.1.103` (key already in place).
+- The app host running podman with the `testapi-app-data` volume.
+
+To (re)deploy manually without Jenkins, see `INSTALL.md`.
+
 ## Project layout
 
 ```
@@ -88,6 +108,7 @@ public/           Web UI (vanilla HTML/CSS/JS)
 Dockerfile        Container image (podman/docker)
 .dockerignore     Keeps node_modules/data out of the image
 Makefile          podman build/run/logs/test helpers
+Jenkinsfile       CI/CD pipeline (build -> test -> deploy -> verify)
 data/users.json   Persisted users (container volume /app/data)
 ```
 
