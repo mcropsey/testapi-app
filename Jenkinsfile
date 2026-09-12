@@ -12,14 +12,15 @@ pipeline {
     DEPLOY_URL = 'http://192.168.1.103:3000'
   }
 
+  // Fallback for pushes that don't go through the dev box (whose git
+  // pre-push hook triggers this job instantly on push to main).
+  triggers {
+    pollSCM('H/1 * * * *')
+  }
+
   options {
     disableConcurrentBuilds()
     buildDiscarder(logRotator(numToKeepStr: '20'))
-    triggers {
-      // Fallback for pushes that don't go through the dev box (whose git
-      // post-receive hook triggers this job instantly on push to main).
-      pollSCM('H/1 * * * *')
-    }
   }
 
   stages {
