@@ -58,7 +58,7 @@ ASCII version:
 
 ```
   GitHub (main)
-      |  push (dev box)  --post-receive hook-->  (instant)
+      |  push (dev box)  --post-push hook-->  (instant)
       |  SCM poll  H/1 * * * *  (fallback, ~1 min)
       v
   +----------------------------------------------------------+
@@ -158,10 +158,11 @@ defaults only by explicitly removing the volume (see `INSTALL.md`).
 
 Push to `main` and the build starts:
 
-- **Push from the dev box (192.168.1.103)** — instant. A git `post-receive` hook
-  (`~/testapi-app/.git/hooks/post-receive`) POSTs to the job's `/build` endpoint
-  right after the push. It reads
+- **Push from the dev box (192.168.1.103)** — instant. A git `post-push` hook
+  (`~/testapi-app/.git/hooks/post-push`) POSTs to the job's `/build` endpoint
+  right after the push succeeds. It reads
   `~/.jenkins-testapi-app.env` (Jenkins URL/user/password/job; not in the repo).
+  (GitHub-side pushes can't reach the hook — that's what the poll is for.)
 - **Push from anywhere else** — within ~1–2 min. The Jenkinsfile carries
   `pollSCM('H/1 * * * *')` as the fallback (it is the single source of truth for
   the trigger; it overrides anything set in the job UI config).
