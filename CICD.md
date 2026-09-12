@@ -135,6 +135,74 @@ picks up pushes to `main` within ~30 minutes. You can also trigger immediately:
 - UI: `http://192.168.1.100:8080/job/testapi-app/` → **Build now**
 - API: `POST /job/testapi-app/build` (auth + crumb)
 
+## Day-to-day operations (no AI needed)
+
+Everything below is plain shell/browser — nothing here is AI-specific.
+
+### Log in to Jenkins
+
+- URL: `http://192.168.1.100:8080`
+- Username: `admin`
+- Password: the one you set when Jenkins was first configured. (It is
+  **not** stored in this repo — the repo is public, so keep all credentials
+  out of it.) If you lose it, reset it on the Jenkins host `192.168.1.100`
+  (try the one-time `docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword`
+  first; if already consumed, reset the `admin` user under
+  *Manage Jenkins → Security → Users*, or recreate the account).
+
+### Trigger a deploy
+
+```bash
+# normal path: just push
+git push origin main
+
+# or immediately, via the API (Jenkins requires a crumb + cookie session):
+B=http://192.168.1.100:8080; U=admin; P=<your-jenkins-password>
+CRUMB=$(curl -s -u "$U:$P" -c /tmp/jk.txt "$B/crumbIssuer/api/json" | sed 's/.*"crumb":"\([^"]*\)".*/\1/')
+curl -s -u "$U:$P" -b /tmp/jk.txt -H "Jenkins-Crumb: $CRUMB" -X POST "$B/job/testapi-app/build" -w 'HTTP %{http_code}\n'   # 201 = queued
+```
+
+### Check the result
+
+```bash
+B=http://192.168.1.100:8080; U=admin; P=<your-jenkins-password>
+# latest build number + result
+curl -s -u "$U:$P" "$B/job/testapi-app/lastBuild/api/json?tree=number,building,result"
+# full log of build #5
+curl -s -u "$U:$P" "$B/job/testapi-app/5/logText/progressiveText?start=0"
+```
+
+Or in the UI: open the job → click the build number → *Console Output*.
+
+### Check the running app (on the app host or from anywhere on the LAN)
+
+```bash
+curl -s http://192.168.1.103:3000/api/health
+# which image is actually running
+ssh mcropsey@192.168.1.103 'podman ps --filter name=testapi-app --format "{{.Image}}  {{.Status}}"'
+# follow the app logs
+ssh mcropsey@192.168.1.103 'podman logs -f testapi-app'
+```
+
+### Roll back to a previous version
+
+Old images are **kept** on the app host (the pipeline never prunes them), so a
+rollback is just "run the old image again". Your user data is in the volume, so
+it is not affected:
+
+```bash
+ssh mcropsey@192.168.1.103 '
+  podman images testapi-app                      # list available <sha> tags
+  OLD=<sha>
+  podman tag localhost/testapi-app:$OLD localhost/testapi-app:latest
+  podman rm -f testapi-app
+  podman run -d --name testapi-app --restart unless-stopped \
+    -p 3000:3000 -v testapi-app-data:/app/data localhost/testapi-app:$OLD
+'
+```
+
+The next pipeline build will simply replace it again with the newer version.
+
 ## Manual (no Jenkins)
 
 To build/run without the pipeline, see `INSTALL.md` (`make run`, `make test`).
