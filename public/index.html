@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TestAPI App</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%234f46e5'/%3E%3Ctext x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'%3ETA%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ============ Login view ============ -->
+  <div id="login-view" class="login-wrap hidden">
+    <div class="login-card">
+      <div class="logo">TA</div>
+      <h1>TestAPI App</h1>
+      <p class="subtitle">Sign in to manage users</p>
+      <form id="login-form" novalidate>
+        <label>
+          Username
+          <input id="login-username" autocomplete="username" placeholder="mike1" required />
+        </label>
+        <label>
+          Password
+          <input id="login-password" type="password" autocomplete="current-password" placeholder="Mypassword1" required />
+        </label>
+        <button type="submit" class="btn primary block">Sign in</button>
+        <p id="login-error" class="form-error"></p>
+      </form>
+      <details class="hint">
+        <summary>Demo accounts</summary>
+        <p>Users <code>mike1</code> &ndash; <code>mike10</code><br />
+           Passwords <code>Mypassword1</code> &ndash; <code>Mypassword10</code></p>
+      </details>
+    </div>
+  </div>
+
+  <!-- ============ App view ============ -->
+  <div id="app-view" class="hidden">
+    <header class="topbar">
+      <div class="brand"><span class="logo small">TA</span> TestAPI App</div>
+      <div class="topbar-right">
+        <a class="link" href="/swagger/" target="_blank" rel="noopener">API docs</a>
+        <span id="current-user" class="chip"></span>
+        <button id="logout-btn" class="btn ghost">Log out</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="stats">
+        <div class="stat">
+          <span id="stat-total" class="stat-value">0</span>
+          <span class="stat-label">Total users</span>
+        </div>
+        <div class="stat">
+          <span id="stat-shown" class="stat-value">0</span>
+          <span class="stat-label">Showing</span>
+        </div>
+        <div class="stat">
+          <span id="stat-you" class="stat-value">@&hellip;</span>
+          <span class="stat-label">Signed in as</span>
+        </div>
+      </section>
+
+      <section class="toolbar">
+        <input id="search" class="search" type="search" placeholder="Search name, email, city, role…" />
+        <button id="add-user-btn" class="btn primary">+ Add user</button>
+      </section>
+
+      <section class="table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Username</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Location</th>
+              <th>Role</th>
+              <th>Updated</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="users-tbody"></tbody>
+        </table>
+        <p id="empty-state" class="empty hidden">No users match your search.</p>
+      </section>
+    </main>
+  </div>
+
+  <!-- ============ User modal ============ -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="modal-title">Add user</h2>
+        <button class="icon-btn" type="button" data-close aria-label="Close">&times;</button>
+      </div>
+      <form id="user-form" novalidate>
+        <div class="grid">
+          <label>
+            Username
+            <input name="username" required minlength="3" maxlength="24" autocomplete="off" />
+          </label>
+          <label>
+            Password <span class="opt" data-new-only>(required for new users)</span>
+            <input name="password" type="password" minlength="6" autocomplete="new-password" />
+          </label>
+          <label>
+            Full name
+            <input name="fullName" required />
+          </label>
+          <label>
+            Email
+            <input name="email" type="email" required />
+          </label>
+          <label>
+            Phone
+            <input name="phone" placeholder="+1-555-0123" />
+          </label>
+          <label>
+            Date of birth
+            <input name="dateOfBirth" type="date" />
+          </label>
+          <label>
+            Job title
+            <input name="jobTitle" placeholder="Engineer" />
+          </label>
+          <label>
+            Street
+            <input name="street" />
+          </label>
+          <label>
+            City
+            <input name="city" />
+          </label>
+          <label>
+            State
+            <input name="state" />
+          </label>
+          <label>
+            Zip
+            <input name="zip" />
+          </label>
+          <label>
+            Country
+            <input name="country" />
+          </label>
+          <label class="span2">
+            Bio
+            <textarea name="bio" rows="3"></textarea>
+          </label>
+        </div>
+        <p id="form-error" class="form-error"></p>
+        <div class="modal-actions">
+          <button type="button" class="btn ghost" data-close>Cancel</button>
+          <button type="submit" class="btn primary" id="save-btn">Create user</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

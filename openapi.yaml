@@ -1,0 +1,463 @@
+openapi: 3.0.3
+info:
+  title: TestAPI App
+  version: 1.0.0
+  description: |
+    A simulated user-management service. Ships with 10 default users
+    (`mike1` through `mike10`, passwords `Mypassword1` through `Mypassword10`).
+
+    Personal information (profile) for each user can be created, read,
+    updated and deleted through this REST API, which uses Bearer-token
+    authentication obtained via `/api/auth/login`.
+  contact:
+    name: TestAPI App
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+tags:
+  - name: Meta
+    description: Service information
+  - name: Auth
+    description: Authentication (login / logout)
+  - name: Users
+    description: User and profile management
+security:
+  - bearerAuth: []
+paths:
+  /api/health:
+    get:
+      tags:
+        - Meta
+      security: []
+      summary: Health check
+      description: Returns the service status and current server time.
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: testapi-app
+                  time:
+                    type: string
+                    format: date-time
+  /api/meta:
+    get:
+      tags:
+        - Meta
+      security: []
+      summary: Service metadata
+      description: Returns the service name, version and entry points (UI, Swagger, health).
+      operationId: getMeta
+      responses:
+        '200':
+          description: Service metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    example: TestAPI App
+                  version:
+                    type: string
+                    example: 1.0.0
+                  ui:
+                    type: string
+                    example: /
+                  swagger:
+                    type: string
+                    example: /swagger/
+                  health:
+                    type: string
+                    example: /api/health
+  /api/auth/login:
+    post:
+      tags:
+        - Auth
+      security: []
+      summary: Log in
+      description: |
+        Authenticates with a username and password and returns a Bearer token
+        that must be sent in the `Authorization` header on all other endpoints.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authentication succeeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Missing username or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid username or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/auth/me:
+    get:
+      tags:
+        - Auth
+      summary: Current user
+      description: Returns the authenticated user for the current token.
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: The authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: Log out
+      description: Invalidates the current session token.
+      operationId: logout
+      responses:
+        '204':
+          description: Token invalidated
+        '401':
+          description: Missing or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/users:
+    get:
+      tags:
+        - Users
+      summary: List users
+      description: Returns a paginated, optionally filtered list of users (without password hashes).
+      operationId: listUsers
+      parameters:
+        - name: q
+          in: query
+          description: Case-insensitive filter across username, full name, email, job title and city.
+          schema:
+            type: string
+          example: mike
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        '200':
+          description: Paginated list of users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags:
+        - Users
+      summary: Create user
+      description: Creates a new user with personal information (profile) and a password.
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+      responses:
+        '201':
+          description: User created
+          headers:
+            Location:
+              schema:
+                type: string
+              example: /api/users/usr_0001
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/users/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: User id (e.g. `usr_0001`) or username (e.g. `mike1`).
+        schema:
+          type: string
+    get:
+      tags:
+        - Users
+      summary: Get user
+      description: Returns a single user by id or username (without password hash).
+      operationId: getUser
+      responses:
+        '200':
+          description: The user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+        - Users
+      summary: Update user
+      description: |
+        Updates the user's profile (partially) and optionally the password.
+        All other fields keep their current values.
+      operationId: updateUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '200':
+          description: The updated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags:
+        - Users
+      summary: Delete user
+      description: Permanently removes a user by id or username.
+      operationId: deleteUser
+      responses:
+        '204':
+          description: User deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Token returned by POST /api/auth/login
+  responses:
+    Unauthorized:
+      description: Missing, invalid or expired token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Address:
+      type: object
+      properties:
+        street:
+          type: string
+          example: 101 Maple Street
+        city:
+          type: string
+          example: Springfield
+        state:
+          type: string
+          example: IL
+        zip:
+          type: string
+          example: '62701'
+        country:
+          type: string
+          example: United States
+    UserProfile:
+      type: object
+      required:
+        - fullName
+        - email
+      properties:
+        fullName:
+          type: string
+          example: Mike 1
+        email:
+          type: string
+          format: email
+          example: mike1@example.com
+        phone:
+          type: string
+          example: '+1-555-0101'
+        dateOfBirth:
+          type: string
+          example: '1991-02-11'
+        address:
+          $ref: '#/components/schemas/Address'
+        jobTitle:
+          type: string
+          example: Engineer
+        bio:
+          type: string
+          example: Default profile for user mike1.
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: usr_0001
+        username:
+          type: string
+          example: mike1
+        profile:
+          $ref: '#/components/schemas/UserProfile'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    UserList:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 10
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 25
+        users:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          example: mike1
+        password:
+          type: string
+          format: password
+          example: Mypassword1
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Bearer token for authenticated requests
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          description: Token lifetime in seconds
+          example: 3600
+        user:
+          $ref: '#/components/schemas/User'
+    UserCreateRequest:
+      type: object
+      required:
+        - username
+        - password
+        - profile
+      properties:
+        username:
+          type: string
+          minLength: 3
+          example: mike11
+        password:
+          type: string
+          format: password
+          minLength: 6
+          example: Mypassword11
+        profile:
+          $ref: '#/components/schemas/UserProfile'
+    UserUpdateRequest:
+      type: object
+      properties:
+        password:
+          type: string
+          format: password
+          minLength: 6
+          example: Newpassword1
+        profile:
+          allOf:
+            - $ref: '#/components/schemas/UserProfile'
+            - required: []
+          description: Partial profile update; omitted fields are unchanged.
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Bad Request
+        message:
+          type: string
+          example: Validation failed
+        details:
+          type: array
+          description: Present on validation failures
+          items:
+            type: string
